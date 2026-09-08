@@ -1,7 +1,7 @@
 name: Verify LIVE TOWER
 on:
   push:
-    branches: [main]
+    branches: [main, continue-astra]
   pull_request:
   workflow_dispatch:
 permissions:
