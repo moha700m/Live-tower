@@ -348,7 +348,7 @@ function Avatar({ player, index, palette, asset, phase }: { player: GameSnapshot
     {isBoosting && <mesh position={[0, 0.34, -0.42]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.24, 0.028, 6, 18]} /><meshBasicMaterial color={palette.glow} transparent opacity={0.8} toneMapped={false} /></mesh>}
     <primitive object={model} />
     {isWinner && <mesh position={[0, 1.02, 0]} rotation={[0, Math.PI / 4, 0]}><torusGeometry args={[0.12, 0.03, 5, 5]} /><meshStandardMaterial color="#ffc86b" emissive="#ffc86b" emissiveIntensity={0.3} /></mesh>}
-    <Html position={[0, 1.12, 0]} center distanceFactor={10} className="avatar-label" occlude={false}>
+    <Html position={[0, 1.12, 0]} center className="avatar-label" occlude={false}>
       <span data-viewer={player.id} data-progress={player.progress} data-pose={pose}>{player.name}</span>
     </Html>
   </group>
@@ -362,8 +362,10 @@ function WorldScene({ state, quality }: WorldProps) {
   return <>
     <color attach="background" args={[palette.sky]} />
     <fog attach="fog" args={[palette.sky, 45, 100]} />
-    <ambientLight intensity={0.62} color="#bfd2db" />
-    <directionalLight position={[8, 22, 12]} intensity={2.4} color="#ffe0b0" castShadow={quality !== 'low'} shadow-mapSize={[quality === 'high' ? 2048 : 1024, quality === 'high' ? 2048 : 1024]} />
+    <ambientLight intensity={1.7} color="#bfd2db" />
+    <directionalLight position={[8, 22, 12]} intensity={3.8} color="#ffe0b0" castShadow={quality !== 'low'} shadow-mapSize={[quality === 'high' ? 2048 : 1024, quality === 'high' ? 2048 : 1024]} />
+    <hemisphereLight args={["#c9eaff", "#b89767", 1.4]} />
+    <directionalLight position={[-8, 12, -6]} intensity={2} color="#74dfff" />
     <pointLight position={[0, 7, 1]} intensity={35} distance={16} color={palette.accent} />
     <Stars radius={45} depth={24} count={quality === 'high' ? 800 : 360} factor={1.6} saturation={0.2} fade speed={0.35} />
     <CityGlow palette={palette} />

@@ -97,3 +97,26 @@ test("trusted controls provide final rush, world, reset, pause and resume", () =
   engine.control({ type: "RESUME" }, 10_001);
   assert.equal(engine.control({ type: "RESET" }, 10_002).phase, "COUNTDOWN");
 });
+
+test('gift advantage remains capped across expiry and restoration, resets per round',()=>{
+ const engine=createEngine({nowMs:0});engine.dispatch(event('join','FOLLOW'),0);engine.advance(10000);
+ for(let i=0;i<10;i++)engine.dispatch(event(`gift${i}`,'GIFT','u1',{giftName:'rocket',quantity:100}),10000);
+ assert.ok(engine.getSnapshot().players[0]!.progress<=0.350001);
+ const restored=createEngine({nowMs:20000,initialState:engine.getSnapshot()});
+ const before=restored.getSnapshot().players[0]!.progress;
+ restored.dispatch(event('more','GIFT','u1',{giftName:'rocket',quantity:100}),20000);
+ assert.equal(restored.getSnapshot().players[0]!.progress,before);
+ restored.advance(213000);
+ const next=restored.getSnapshot().players[0]!.progress;
+ restored.dispatch(event('new-round','GIFT','u1',{giftName:'rose'}),213000);
+ assert.ok(restored.getSnapshot().players[0]!.progress>next);
+});
+
+test('large ticks and small ticks produce the same boost and weather progress',()=>{
+ const a=createEngine({nowMs:0});a.dispatch(event('join','FOLLOW'),0);a.advance(10000);
+ a.dispatch(event('gift','GIFT','u1',{giftName:'rose'}),10000);
+ a.control({type:'EVENT',value:'SANDSTORM'},10000);
+ const b=createEngine({nowMs:10000,initialState:a.getSnapshot()});
+ a.advance(70000);for(let t=10100;t<=70000;t+=100)b.advance(t);
+ assert.ok(Math.abs(a.getSnapshot().players[0]!.progress-b.getSnapshot().players[0]!.progress)<1e-9);
+});

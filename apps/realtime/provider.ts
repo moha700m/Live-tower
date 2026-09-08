@@ -33,12 +33,12 @@ function userFrom(data: unknown) {
   return { providerUserId: id, username, nickname };
 }
 
-function normalized(sessionId: string, type: string, data: unknown, payload: Record<string, unknown> = {}) {
+export function normalizeTikTokEvent(sessionId: string, type: string, data: unknown, payload: Record<string, unknown> = {}) {
   const timestamp = Date.now();
   const viewer = userFrom(data);
-  const sourceId = field(data, "eventId") ?? field(data, "msgId") ?? field(data, "messageId") ?? field(data, "id");
+  const sourceId = field(field(data, "common"), "msgId") ?? field(data, "eventId") ?? field(data, "msgId") ?? field(data, "messageId") ?? field(data, "id");
   return {
-    eventId: String(sourceId ?? stableId([sessionId, type, timestamp, viewer.providerUserId, payload])),
+    eventId: `${sessionId}:${type}:${String(sourceId ?? stableId([sessionId, type, timestamp, viewer.providerUserId, payload]))}`,
     platform: "tiktok",
     timestamp,
     sessionId,
@@ -78,7 +78,6 @@ export class TikTokLiveProvider implements LiveProvider {
   readonly name = "tiktok" as const;
   private readonly events = new EventEmitter();
   private connection: TikTokLiveConnection | undefined;
-  private readonly activeGiftStreaks = new Set<string>();
   private status: ProviderStatus = "disconnected";
   private reconnectTimer: NodeJS.Timeout | undefined;
   private stopping = false;
@@ -96,7 +95,7 @@ export class TikTokLiveProvider implements LiveProvider {
       // No session/cookie/password options: this server only observes public LIVE events.
       fetchRoomInfoOnConnect: true,
       processInitialData: false,
-      enableExtendedGiftInfo: false,
+      enableExtendedGiftInfo: true,
     });
     this.connection = connection;
     const on = (event: string, handler: (data: unknown) => void) => connection.on(event as never, handler as never);
@@ -106,24 +105,26 @@ export class TikTokLiveProvider implements LiveProvider {
       const reason = String(field(data, "reason") ?? "disconnected");
       if (this.stopping) { this.setStatus("disconnected", reason || "stopped"); return; }
       this.setStatus("reconnecting", reason);
-      this.reconnectTimer = setTimeout(() => { void this.start().catch((error) => this.setStatus("disconnected", String(error))); }, 5000);
+      if (!this.reconnectTimer) this.reconnectTimer = setTimeout(() => { this.reconnectTimer = undefined; void this.start().catch(() => undefined); }, 5000);
     });
     on(ControlEvent.ERROR, (data) => {
       const exception = record(field(data, "exception"));
-      this.events.emit("status", "reconnecting", String(exception.message ?? field(data, "message") ?? "provider error"));
+      this.setStatus("reconnecting", String(exception.message ?? field(data, "message") ?? "provider error"));
     });
-    on(WebcastEvent.MEMBER, (data) => this.publish(normalized(this.sessionId, "VIEWER_JOIN", data, { viewerCount: field(data, "memberCount") })));
-    on(WebcastEvent.CHAT, (data) => this.publish(normalized(this.sessionId, "COMMENT", data, { comment: String(field(data, "comment") ?? "").slice(0, 500) })));
-    on(WebcastEvent.LIKE, (data) => this.publish(normalized(this.sessionId, "LIKE", data, { count: Number(field(data, "likeCount") ?? 1), total: Number(field(data, "totalLikeCount") ?? 0) })));
-    on(WebcastEvent.FOLLOW, (data) => this.publish(normalized(this.sessionId, "FOLLOW", data)));
-    on(WebcastEvent.SHARE, (data) => this.publish(normalized(this.sessionId, "SHARE", data)));
-    on(WebcastEvent.ROOM_USER, (data) => this.publish(normalized(this.sessionId, "VIEWER_COUNT", data, { count: Number(field(data, "viewerCount") ?? 0) })));
+    on(WebcastEvent.MEMBER, (data) => this.publish(normalizeTikTokEvent(this.sessionId, "VIEWER_JOIN", data, { viewerCount: field(data, "memberCount") })));
+    on(WebcastEvent.CHAT, (data) => this.publish(normalizeTikTokEvent(this.sessionId, "COMMENT", data, { comment: String(field(data, "content") ?? field(data, "comment") ?? "").slice(0, 500) })));
+    on(WebcastEvent.LIKE, (data) => this.publish(normalizeTikTokEvent(this.sessionId, "LIKE", data, { count: Number(field(data, "count") ?? field(data, "likeCount") ?? 1), total: Number(field(data, "total") ?? field(data, "totalLikeCount") ?? 0) })));
+    on(WebcastEvent.FOLLOW, (data) => this.publish(normalizeTikTokEvent(this.sessionId, "FOLLOW", data)));
+    on(WebcastEvent.SHARE, (data) => this.publish(normalizeTikTokEvent(this.sessionId, "SHARE", data)));
+    on(WebcastEvent.ROOM_USER, (data) => this.publish(normalizeTikTokEvent(this.sessionId, "VIEWER_COUNT", data, { count: Number(field(data, "total") ?? field(data, "totalUser") ?? field(data, "viewerCount") ?? 0) })));
     on(WebcastEvent.GIFT, (data) => this.handleGift(data));
     try {
       await connection.connect();
     } catch (error) {
       this.connection = undefined;
-      this.setStatus("disconnected", error instanceof Error ? error.message : String(error));
+      connection.removeAllListeners();
+      this.setStatus(this.stopping ? "disconnected" : "reconnecting", error instanceof Error ? error.message : String(error));
+      if (!this.stopping && !this.reconnectTimer) this.reconnectTimer = setTimeout(() => { this.reconnectTimer = undefined; void this.start().catch(() => undefined); }, 10_000);
       throw error;
     }
   }
@@ -143,25 +144,24 @@ export class TikTokLiveProvider implements LiveProvider {
   getStatus() { return this.status; }
 
   private handleGift(data: unknown) {
-    const details = record(field(data, "giftDetails"));
-    const giftType = Number(details.giftType ?? field(data, "giftType") ?? 0);
-    const giftId = String(field(data, "giftId") ?? details.giftId ?? "unknown-gift");
-    const user = userFrom(data);
-    const streakKey = `${user.providerUserId}:${giftId}`;
-    // Gift type 1 emits intermediate increments and one final repeatEnd event.
-    if (giftType === 1 && !field(data, "repeatEnd")) {
-      this.activeGiftStreaks.add(streakKey);
-      return;
-    }
-    this.activeGiftStreaks.delete(streakKey);
-    this.publish(normalized(this.sessionId, "GIFT", data, {
-      giftId,
-      giftName: details.giftName ?? field(data, "giftName") ?? "Gift",
-      repeatCount: Number(field(data, "repeatCount") ?? 1),
-      repeatEnd: Boolean(field(data, "repeatEnd") ?? true),
-      giftType,
-    }));
+    const event = normalizeTikTokGift(this.sessionId, data);
+    if (event) this.publish(event);
   }
   private publish(event: NormalizedEvent) { this.events.emit("event", event); }
   private setStatus(next: ProviderStatus, detail?: string) { this.status = next; this.events.emit("status", next, detail); }
+}
+
+/** Connector 2.x emits cumulative streak counts; apply only the terminal packet. */
+export function normalizeTikTokGift(sessionId: string, data: unknown): NormalizedEvent | undefined {
+  const gift = record(field(data, "gift"));
+  const legacy = record(field(data, "giftDetails"));
+  const giftType = Number(gift.type ?? legacy.giftType ?? field(data, "giftType") ?? 0);
+  if (giftType === 1 && !field(data, "repeatEnd")) return;
+  return normalizeTikTokEvent(sessionId, "GIFT", data, {
+    giftId: String(field(data, "giftId") ?? gift.id ?? legacy.giftId ?? "unknown-gift"),
+    giftName: gift.name ?? field(field(data, "extendedGiftInfo"), "name") ?? legacy.name ?? field(data, "giftName") ?? "Gift",
+    repeatCount: Math.max(1, Math.min(100, Number(field(data, "repeatCount")) || 1)),
+    repeatEnd: true,
+    giftType,
+  });
 }

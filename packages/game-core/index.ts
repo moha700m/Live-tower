@@ -110,10 +110,15 @@ export function createEngine(options: EngineOptions = {}): Engine {
   const podiumMs = Math.max(0, finite(config.podiumMs, 10_000));
   const transitionMs = Math.max(0, finite(config.transitionMs, 3_000));
   const lateQueueThresholdMs = Math.max(0, finite(config.lateQueueThresholdMs, 15_000));
-  const configuredSeed = config.seed ?? 0;
+  const configuredSeed = config.seed ?? read(initial, "seed") ?? 0;
   const seed = typeof configuredSeed === "number" ? configuredSeed : hash(String(configuredSeed));
   const listeners = new Set<SnapshotListener>();
-  const initialNow = options.nowMs ?? finite(read(initial, "serverNow"), finite(read(initial, "nowMs"), Date.now()));
+  const persistedServerNow = finite(read(initial, "serverNow"), Number.NaN);
+  const persistedNowMs = finite(read(initial, "nowMs"), Number.NaN);
+  const snapshotNow = Number.isFinite(persistedServerNow) ? persistedServerNow
+    : Number.isFinite(persistedNowMs) ? persistedNowMs : finite(options.nowMs, Date.now());
+  const initialNow = snapshotNow;
+  const requestedNow = finite(options.nowMs, snapshotNow);
 
   const state: InternalState = {
     now: initialNow,
@@ -188,16 +193,19 @@ export function createEngine(options: EngineOptions = {}): Engine {
   const sourcePlayers = read(initial, "players");
   if (Array.isArray(sourcePlayers)) {
     for (const source of sourcePlayers as PlayerSnapshot[]) {
+      if (!source || typeof source !== "object") continue;
       const player = basePlayer(source, finite(source.joinedAt, state.now), true);
       state.players.set(player.id, player);
       if (player.finishOrder !== undefined) state.finishCounter = Math.max(state.finishCounter, player.finishOrder);
       if (!state.stats.has(player.id)) state.stats.set(player.id, newStats(player.progress));
     }
   }
+  if (state.winnerId && !state.players.has(state.winnerId)) state.winnerId = undefined;
   if (!state.winnerId) state.winnerId = [...state.players.values()].find((player) => player.finishOrder === 1)?.id;
   const sourceQueue = read(initial, "queue");
   if (Array.isArray(sourceQueue)) {
     for (const source of sourceQueue as QueuedViewer[]) {
+      if (!source || typeof source !== "object") continue;
       const id = text(source.id, "unknown:queued");
       state.queue.set(id, { ...copyQueue(source), id, name: text(source.name, "Climber"), appearance: text(source.appearance, `rider-${hash(id) % 12}`), joinedAt: finite(source.joinedAt, state.now), platform: text(source.platform, id.split(":")[0]), providerUserId: text(source.providerUserId, id.split(":").slice(1).join(":")) });
     }
@@ -340,6 +348,19 @@ export function createEngine(options: EngineOptions = {}): Engine {
     const arabic = kind === "SPEED" ? "سرعة" : kind === "LOWGRAV" ? "جاذبية منخفضة" : "حظ سعيد";
     feed(`auto:${kind}:${at}`, `${kind} / ${arabic}: the tower event is active.`, at, "auto");
   }
+  function expireTimers(at: number): void {
+    if (state.globalBoostUntil !== undefined && state.globalBoostUntil <= at) {
+      state.globalBoostUntil = undefined;
+      state.globalMultiplier = 1;
+    }
+    if (state.sandstormUntil !== undefined && state.sandstormUntil <= at) state.sandstormUntil = undefined;
+    for (const player of state.players.values()) {
+      if (player.boostUntil !== undefined && player.boostUntil <= at) {
+        player.boostUntil = undefined;
+        player.boostProgress = 0;
+      }
+    }
+  }
   function startNextRound(at: number): void {
     const lineup = new Map<string, InternalPlayer>();
     // Queued viewers are placed first, so a late viewer never loses their FIFO place.
@@ -366,7 +387,7 @@ export function createEngine(options: EngineOptions = {}): Engine {
     state.autoEventUntil = undefined;
     state.eventName = `Tower ${state.worldIndex + 1}`;
     for (const player of state.players.values()) {
-      player.progress = 0; player.finishOrder = undefined; player.boostUntil = undefined; player.boostProgress = 0; player.lastProgressAt = at;
+      player.progress = 0; player.finishOrder = undefined; player.boostUntil = undefined; player.boostProgress = 0; player.giftProgress = 0; player.lastProgressAt = at;
       markParticipation(player);
     }
     if (state.players.size === 0) setPhase("WAITING", null, at);
@@ -426,6 +447,7 @@ export function createEngine(options: EngineOptions = {}): Engine {
       state.now = target;
       changed = true;
     }
+    expireTimers(state.now);
     cleanDedup(state.now);
     return changed;
   }
@@ -536,6 +558,9 @@ export function createEngine(options: EngineOptions = {}): Engine {
     };
   }
   recomputeLeader();
+  // A host may restore a snapshot while its injected absolute clock has
+  // advanced. Replay the elapsed interval once, using the persisted cursors.
+  if (!state.paused && requestedNow > state.now) advanceInternal(requestedNow);
   let current = snapshot();
   function commit(changed: boolean): GameSnapshot {
     if (!changed) return copySnapshot(current);
@@ -561,6 +586,7 @@ export function createEngine(options: EngineOptions = {}): Engine {
     if (control.type === "EVENT") {
       if (control.event) return dispatch(control.event, nowMs);
       const at = state.paused ? state.now : Math.max(state.now, finite(nowMs, state.now));
+      advanceInternal(at);
       const label = text(control.value, state.eventName).toUpperCase();
       if (label.includes("SANDSTORM")) {
         state.sandstormUntil = at + 12_000;
@@ -570,7 +596,8 @@ export function createEngine(options: EngineOptions = {}): Engine {
       state.now = at;
       return commit(true);
     }
-    const at = Math.max(state.now, finite(nowMs, state.now));
+    const at = control.type === "RESUME" || !state.paused
+      ? Math.max(state.now, finite(nowMs, state.now)) : state.now;
     let changed = advanceInternal(at);
     if (control.type === "FINAL_RUSH" && state.phase === "ACTIVE") { updateProgress(at); setPhase("FINAL_RUSH", at + finalRushMs, at); changed = true; }
     else if (control.type === "RESET") {
@@ -595,6 +622,7 @@ export function createEngine(options: EngineOptions = {}): Engine {
           state.autoEventKind = undefined;
           state.autoEventUntil = undefined;
         }
+        for (const [id, seenAt] of state.dedup) state.dedup.set(id, seenAt + shift);
         for (const player of state.players.values()) if (player.boostUntil !== undefined) player.boostUntil += shift;
         for (const player of state.players.values()) player.lastProgressAt += shift;
         state.paused = false; state.pausedAt = undefined; state.now = at; changed = true;
