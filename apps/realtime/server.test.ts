@@ -19,7 +19,7 @@ async function connected(client: ReturnType<typeof connect>) {
   await new Promise<void>((resolve, reject) => { client.once("connect", () => resolve()); client.once("connect_error", reject); });
 }
 
- test("mock Socket.IO control bridge dispatches an authoritative event", async () => {
+test("mock Socket.IO control bridge dispatches an authoritative event", async () => {
   const server = await createRealtimeServer(config());
   await server.start();
   const client = connect(`http://localhost:${await listeningPort(server)}`, { auth: { role: "control" }, transports: ["websocket"] });
@@ -71,30 +71,30 @@ test("malformed acknowledgement from a read-only client cannot crash the service
   }
 });
 
-test("production control and overlay sockets require their configured tokens", async () => {
+test("production keeps control and overlay protected while public snapshots stay read-only", async () => {
   const server = await createRealtimeServer(productionConfig());
   await server.start();
   const origin = `http://localhost:${await listeningPort(server)}`;
   const badControl = connect(origin, { auth: { role: "control", token: "wrong" }, transports: ["websocket"], reconnection: false });
-  const noOverlayToken = connect(origin, { transports: ["websocket"], reconnection: false });
+  const readonly = connect(origin, { transports: ["websocket"], reconnection: false });
   const control = connect(origin, { auth: { role: "control", token: "control-secret" }, transports: ["websocket"] });
   const overlay = connect(origin, { auth: { role: "overlay", token: "overlay-secret" }, transports: ["websocket"] });
   try {
     const badError = await new Promise<Error>((resolve) => badControl.once("connect_error", resolve));
     assert.match(badError.message, /unauthorized/i);
-    const overlayError = await new Promise<Error>((resolve) => noOverlayToken.once("connect_error", resolve));
-    assert.match(overlayError.message, /unauthorized/i);
-    await Promise.all([connected(control), connected(overlay)]);
+    await Promise.all([connected(readonly), connected(control), connected(overlay)]);
+    const readonlyDenied = await new Promise<Ack>((resolve) => readonly.emit("control:command", { type: "RESET" }, resolve));
+    assert.deepEqual(readonlyDenied, { ok: false, error: "control_required" });
     const command = await new Promise<Ack>((resolve) => control.emit("control:command", { type: "WORLD", worldIndex: 4 }, resolve));
     assert.equal(command.ok, true);
     assert.equal(command.snapshot?.worldIndex, 4);
-    const denied = await new Promise<Ack>((resolve) => overlay.emit("control:command", { type: "RESET" }, resolve));
-    assert.deepEqual(denied, { ok: false, error: "control_required" });
+    const overlayDenied = await new Promise<Ack>((resolve) => overlay.emit("control:command", { type: "RESET" }, resolve));
+    assert.deepEqual(overlayDenied, { ok: false, error: "control_required" });
     const health = await fetch(`${origin}/health`).then((response) => response.json()) as { ok: boolean; provider: string; database: string };
     assert.deepEqual({ ok: health.ok, provider: health.provider, database: health.database }, { ok: true, provider: "mock", database: "ephemeral" });
   } finally {
     badControl.close();
-    noOverlayToken.close();
+    readonly.close();
     control.close();
     overlay.close();
     await server.stop();
