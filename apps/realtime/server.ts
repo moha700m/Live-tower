@@ -39,7 +39,6 @@ export interface RealtimeServer {
   stop(): Promise<void>;
 }
 
-
 function reply(callback: unknown, result: unknown): void { if (typeof callback === "function") callback(result); }
 
 function tokenFrom(socket: Socket): string | undefined {
@@ -58,8 +57,7 @@ function roleFor(socket: Socket, config: RealtimeConfig): "control" | "overlay" 
   if (requested === "overlay") {
     return config.OVERLAY_TOKEN && token === config.OVERLAY_TOKEN ? "overlay" : "reject";
   }
-  // A configured overlay token protects the default read-only connection too.
-  if (config.OVERLAY_TOKEN && token !== config.OVERLAY_TOKEN) return "reject";
+  // Public viewers may subscribe to snapshots, but all mutating events remain control-only.
   return "readonly";
 }
 
@@ -162,7 +160,6 @@ export async function createRealtimeServer(config = loadConfig()): Promise<Realt
       try { dispatch(event, nowMs); reply(acknowledge, { ok: true, eventId: event.eventId, snapshot: viewSnapshot() }); } catch { reply(acknowledge, { ok: false, error: "event_rejected" }); }
     };
     socket.on("control:input", input);
-    // Backwards-compatible alias for the first web client protocol.
     socket.on("input", input);
     const command = (raw: unknown, acknowledge?: (result: unknown) => void) => {
       if (socket.data.role !== "control") return reply(acknowledge, { ok: false, error: "control_required" });
@@ -219,17 +216,16 @@ export async function createRealtimeServer(config = loadConfig()): Promise<Realt
       if (persistenceTimer) { clearTimeout(persistenceTimer); persistenceTimer = undefined; }
       persistenceQueued = false;
       unsubscribeEvent(); unsubscribeStatus();
-      await provider.stop();
-      await new Promise<void>((resolveStop) => io.close(() => resolveStop()));
-      if (httpServer.listening) await new Promise<void>((resolveStop) => httpServer.close(() => resolveStop()));
-      if (persistenceInFlight) await persistenceInFlight;
-      if (store.enabled) await store.save(config.SESSION_ID, snapshot());
+      await provider.stop().catch(() => undefined);
+      if (persistenceInFlight) await persistenceInFlight.catch(() => undefined);
       await store.close();
+      await io.close();
+      await new Promise<void>((resolveStop) => { if (!httpServer.listening) return resolveStop(); httpServer.close(() => resolveStop()); });
     },
   };
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const server = await createRealtimeServer();
   await server.start();
