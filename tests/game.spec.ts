@@ -1,6 +1,6 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
-async function waitForWorld(page: Parameters<typeof test>[0] extends never ? never : any) {
+async function waitForWorld(page: Page) {
  await expect(page.locator('canvas')).toBeVisible();
  await expect(page.getByText('العالم يحتاج WebGL 2')).toHaveCount(0);
  await expect(page.locator('.world-loading')).toHaveCount(0,{timeout:15000});
