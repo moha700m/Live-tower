@@ -28,8 +28,8 @@
 1. في Render أنشئ Blueprint من مستودع `moha700m/Live-tower`؛ ملف `render.yaml` ينشئ خدمة `rise966-realtime` وPostgres واحدًا.
 2. أدخل `TIKTOK_UNIQUE_ID` باسم حساب TikTok العام بدون `@`، و`WEB_ORIGIN=https://live-tower.vercel.app`، وأنشئ `CONTROL_TOKEN` عشوائيًا طويلًا. اترك `OVERLAY_TOKEN` فارغًا في أول تشغيل.
 3. انتظر أن يعرض `/health` قيمة `provider: "tiktok"` وحالة `connected` أو `reconnecting`.
-4. أضف عنوان الخدمة إلى Vercel باسم `VITE_GAME_SERVER_URL` ثم أعد النشر. هذا المتغير عنوان عام فقط؛ لا تضع فيه أي سر.
+4. يمكنك إضافة عنوان الخدمة إلى Vercel باسم `VITE_GAME_SERVER_URL` ثم إعادة النشر، أو استخدمه مباشرة في رابط العرض: `/play?server=https%3A%2F%2Fاسم-الخدمة.onrender.com`. العنوان عام فقط؛ لا تضع فيه أي سر.
 5. افتح `/dashboard/live`، ضع عنوان الخدمة و`CONTROL_TOKEN` واضغط اتصال. يجب أن يتغير المؤشر من `محاكاة محلية` إلى `TikTok متصل`.
-6. استخدم `/play` كمصدر المتصفح في TikTok LIVE Studio.
+6. استخدم `/play?server=...` كمصدر المتصفح في TikTok LIVE Studio.
 
 تدفق الهدية هو: هدية TikTok → موصل TikTok → خدمة Realtime → Socket.IO → `/play`. الهدايا المتتابعة لا تُحسب إلا عند الحزمة النهائية، وتبقى أفضلية الهدايا محدودة حتى لا يصبح الإنفاق فوزًا مضمونًا.

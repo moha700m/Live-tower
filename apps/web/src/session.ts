@@ -38,4 +38,5 @@ export async function connectRemote(address:string,token:string,status:(message:
  return ()=>next.disconnect();
 }
 export function isRemote(){return remote;}
-if(import.meta.env.VITE_GAME_SERVER_URL&&(location.pathname==='/play'||location.pathname.startsWith('/overlay/'))){void connectRemote(import.meta.env.VITE_GAME_SERVER_URL,new URLSearchParams(location.hash.slice(1)).get('token')||'',()=>{},'readonly').catch(()=>publish({...snapshot,providerStatus:'disconnected'}));}
+const publicServer=new URLSearchParams(location.search).get('server')||import.meta.env.VITE_GAME_SERVER_URL||'';
+if(publicServer&&(location.pathname==='/play'||location.pathname.startsWith('/overlay/'))){void connectRemote(publicServer,new URLSearchParams(location.hash.slice(1)).get('token')||'',()=>{},'readonly').catch(()=>publish({...snapshot,providerStatus:'disconnected'}));}
