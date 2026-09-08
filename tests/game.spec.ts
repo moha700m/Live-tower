@@ -4,6 +4,8 @@ async function waitForWorld(page: Page) {
  await expect(page.locator('canvas')).toBeVisible();
  await expect(page.getByText('العالم يحتاج WebGL 2')).toHaveCount(0);
  await expect(page.locator('.world-loading')).toHaveCount(0,{timeout:15000});
+ await expect(page.locator('[data-viewer]').first()).toBeVisible({timeout:15000});
+ await expect(page.locator('.world-loading')).toHaveCount(0);
 }
 
 test('real 3D follow, boosts, crown, podium and automatic next round',async({page})=>{
@@ -50,6 +52,7 @@ test('all five worlds, mobile layout and dashboard controls',async({page})=>{
   await page.goto('/play');
   await waitForWorld(page);
   await expect(page.locator('.world-label')).toContainText(world.en);
+  await expect(page.locator('.world-loading')).toHaveCount(0);
   await page.screenshot({path:`artifacts/world-${index}.png`});
   await page.goto('/dashboard/customize');
  }
