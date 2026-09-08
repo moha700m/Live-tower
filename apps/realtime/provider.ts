@@ -9,7 +9,7 @@ export type ProviderStatusListener = (status: ProviderStatus, detail?: string) =
 
 /** TikTok's connector expects the public handle, not the display-form @handle. */
 export function normalizeTikTokUniqueId(value: string): string {
-  return value.trim().replace(/^@+/, "");
+  return value.trim().replace(/^@+/, "").toLowerCase();
 }
 
 export interface LiveProvider {

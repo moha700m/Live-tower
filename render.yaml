@@ -16,7 +16,7 @@ services:
       - key: PROVIDER
         value: tiktok
       - key: TIKTOK_UNIQUE_ID
-        value: Mgz7o2
+        value: mgz7o2
       - key: SESSION_ID
         value: rise966
       - key: WEB_ORIGIN
