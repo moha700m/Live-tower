@@ -4,10 +4,11 @@ services:
     runtime: node
     plan: free
     region: frankfurt
+    branch: continue-astra
     buildCommand: npm ci
     startCommand: npm run server
     healthCheckPath: /health
-    autoDeploy: true
+    autoDeployTrigger: checksPass
     envVars:
       - key: NODE_VERSION
         value: 24
@@ -18,7 +19,7 @@ services:
       - key: SESSION_ID
         value: rise966
       - key: WEB_ORIGIN
-        value: https://localhost.invalid
+        value: https://rise966-web.onrender.com
       - key: CONTROL_TOKEN
         generateValue: true
       - key: OVERLAY_TOKEN
@@ -27,6 +28,22 @@ services:
         fromDatabase:
           name: rise966-postgres
           property: connectionString
+
+  - type: web
+    name: rise966-web
+    runtime: static
+    branch: continue-astra
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: VITE_GAME_SERVER_URL
+        value: https://rise966-realtime.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
 databases:
   - name: rise966-postgres
     plan: free
