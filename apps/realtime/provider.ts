@@ -7,6 +7,11 @@ export type ProviderStatus = "disconnected" | "connecting" | "connected" | "reco
 export type ProviderEventListener = (event: NormalizedEvent) => void;
 export type ProviderStatusListener = (status: ProviderStatus, detail?: string) => void;
 
+/** TikTok's connector expects the public handle, not the display-form @handle. */
+export function normalizeTikTokUniqueId(value: string): string {
+  return value.trim().replace(/^@+/, "");
+}
+
 export interface LiveProvider {
   readonly name: "mock" | "tiktok";
   readonly sessionId: string;
@@ -84,7 +89,7 @@ export class TikTokLiveProvider implements LiveProvider {
   readonly sessionId: string;
   private readonly uniqueId: string;
 
-  constructor(sessionId: string, uniqueId: string) { this.sessionId = sessionId; this.uniqueId = uniqueId; }
+  constructor(sessionId: string, uniqueId: string) { this.sessionId = sessionId; this.uniqueId = normalizeTikTokUniqueId(uniqueId); }
 
   async start() {
     this.stopping = false;

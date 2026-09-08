@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeTikTokEvent} from './provider.ts';
+import {normalizeTikTokEvent, normalizeTikTokUniqueId} from './provider.ts';
+test('TikTok handles are normalized before connecting',()=>{
+ assert.equal(normalizeTikTokUniqueId('  @Mohammed  '),'Mohammed');
+});
 test('TikTok common message IDs remain stable across replay',()=>{
  const data={common:{msgId:'12345678901234567890'},user:{userId:'998',uniqueId:'Mohammed',nickname:'محمد'}};
  const first=normalizeTikTokEvent('rise966','FOLLOW',data), replay=normalizeTikTokEvent('rise966','FOLLOW',data);
