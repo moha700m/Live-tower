@@ -19,13 +19,12 @@ function Stage({state,quality='medium',compact=false}:{state:SessionSnapshot;qua
  <RenderBoundary><Suspense fallback={<div className="world-loading"><span className="loading-ring"/>نبني الطريق إلى القمّة…</div>}><>{webglAvailable?<World state={state} quality={quality}/>:<div className="render-error"><strong>العالم يحتاج WebGL 2</strong><p>افتح اللعبة في متصفح يدعم تسريع الرسوميات. أدوات التجربة ومحرك الجولات ما زالا يعملان.</p></div>}</></Suspense></RenderBoundary>
  <div className="stage-vignette"/><div className="stage-top"><div className="stage-brand" dir="ltr">LIVE TOWER <small>RISE 966</small></div><span className="live-pill"><i/> {state.provider==='tiktok'?(state.providerStatus==='connected'?'TIKTOK LIVE':'OFFLINE'):'DEMO LIVE'}</span></div>
  <div className="round-hud"><div><small>الجولة</small><b>{String(state.round).padStart(2,'0')}</b></div><div className="timer"><small>{phaseText[state.phase]}</small><b data-testid="round-timer">{time}</b></div><div><small>متحدّي</small><b>{state.players.length}<em>/30</em></b></div></div>
- <div className="world-label" dir="ltr"><span/> {theme.name} <span/></div>
- {king&&<div className="king-banner"><span>♛</span><div><small>ملك البرج</small><b dir="auto">{king.name}</b></div><span>✧</span></div>}
+ {state.phase==='PODIUM'&&king&&<div className="king-banner"><span>♛</span><div><small>ملك البرج</small><b dir="auto">{king.name}</b></div><span>✧</span></div>}
  {state.phase==='COUNTDOWN'&&remaining<=5&&<div className="countdown-number">{remaining||'انطلق'}</div>}
  {state.phase==='FINAL_RUSH'&&<div className="rush-banner">⚡ FINAL RUSH</div>}
  {state.eventName&&<div className="world-event">✦ {state.eventName}</div>}
  {state.phase==='PODIUM'&&<div className="podium-summary"><small>معاً وصلنا للقمّة</small><h2>أبطال الجولة {state.round}</h2>{leaders.slice(0,3).map((p,i)=><div key={p.id}><span>{['👑','🥈','🥉'][i]}</span><b dir="auto">{p.name}</b><small>+{[100,60,40][i]} XP</small></div>)}</div>}
- <div className="stage-bottom"><div className="event-feed" aria-live="polite">{state.feed.slice(-3).map(item=><div key={item.id}><span>✦</span><b dir="auto">{item.text}</b></div>)}</div><div className="race-ranking">{leaders.slice(0,3).map((p,i)=><div key={p.id}><span className="rank-number">{i===0?'♛':i+1}</span><b dir="auto">{p.name}</b><span>{Math.round(p.progress*100)}%</span></div>)}</div><div className="stream-legend"><span>＋ تابع <b>ادخل</b></span><span>✿ وردة <b>اصعد</b></span><span>♛ القمّة <b>تتويج</b></span></div><div className="stage-footer"><span>معاً نصل للقمة</span><span dir="ltr">RISE · COMPETE · REPEAT</span></div></div>
+ <div className="stage-bottom"><div className="race-ranking">{leaders.slice(0,3).map((p,i)=><div key={p.id}><span className="rank-number">{i===0?'♛':i+1}</span><b dir="auto">{p.name}</b><span>{Math.round(p.progress*100)}%</span></div>)}</div></div>
  </div>;
 }
 function DemoControls({state}:{state:GameSnapshot}){
