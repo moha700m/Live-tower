@@ -14,7 +14,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: PROVIDER
-        value: mock
+        value: tiktok
+      - key: TIKTOK_UNIQUE_ID
+        sync: false
       - key: SESSION_ID
         value: rise966
       - key: WEB_ORIGIN

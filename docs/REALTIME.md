@@ -33,4 +33,4 @@ Set `DATABASE_URL` to enable `realtime_snapshots` and `viewer_progress`. The ser
 
 ## Deployment
 
-`render.yaml` provisions one persistent web service and a Postgres instance. Configure `WEB_ORIGIN`, `CONTROL_TOKEN`, and (if used) `OVERLAY_TOKEN` as Render secrets. Keep `PROVIDER=mock` until a public TikTok username is configured and the anonymous connector is verified. Render supplies `PORT`; the server listens on all interfaces and exposes `/health` for the platform check.
+`render.yaml` provisions one persistent web service and a Postgres instance. Its release configuration now selects `PROVIDER=tiktok`; Render will ask for `TIKTOK_UNIQUE_ID`, `WEB_ORIGIN`, `CONTROL_TOKEN`, and (if used) `OVERLAY_TOKEN` when you create the Blueprint. Enter the public TikTok username without `@`. The connector is anonymous and read-only: it does not accept a TikTok password, cookie, session ID, or OAuth token. If you need to rehearse without a live account, set `PROVIDER=mock` manually before deploying. Render supplies `PORT`; the server listens on all interfaces and exposes `/health` for the platform check.
