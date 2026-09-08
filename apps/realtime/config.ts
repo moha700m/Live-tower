@@ -3,7 +3,9 @@ import { z } from "zod";
 const envSchema = z.object({
   NODE_ENV: z.string().default("development"),
   PORT: z.coerce.number().int().min(1).max(65535).default(8787),
-  WEB_ORIGIN: z.string().default("http://localhost:4173"),
+  // Browsers send an origin without a trailing slash. Normalize Render/Vercel
+  // values here so Socket.IO's exact CORS comparison cannot reject the app.
+  WEB_ORIGIN: z.string().default("http://localhost:4173").transform((value) => value.replace(/\/+$/, "")),
   SESSION_ID: z.string().min(1).default("rise966"),
   PROVIDER: z.enum(["mock", "tiktok"]).default("mock"),
   TIKTOK_UNIQUE_ID: z.string().optional(),
