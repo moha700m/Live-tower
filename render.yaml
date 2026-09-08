@@ -2,7 +2,7 @@ services:
   - type: web
     name: rise966-realtime
     runtime: node
-    plan: starter
+    plan: free
     region: frankfurt
     buildCommand: npm ci
     startCommand: npm run server
@@ -29,5 +29,6 @@ services:
           property: connectionString
 databases:
   - name: rise966-postgres
+    plan: free
     region: frankfurt
     ipAllowList: []
