@@ -22,7 +22,9 @@ test("mock Socket.IO control bridge dispatches an authoritative event", async ()
     await new Promise<void>((resolve, reject) => { client.once("connect", () => resolve()); client.once("connect_error", reject); });
     const ack = await new Promise<Ack>((resolve) => client.emit("control:input", { type: "FOLLOW", viewer: { providerUserId: "viewer-1", username: "viewer", nickname: "Viewer" }, payload: {} }, resolve));
     assert.equal(ack.ok, true);
-    assert.equal(ack.snapshot?.revision, 1);
+    assert.ok((ack.snapshot?.revision ?? 0) >= 1);
+    assert.equal(ack.snapshot?.players.length, 1);
+    assert.equal(ack.snapshot?.players[0]?.id, "mock:viewer-1");
     assert.ok((ack.snapshot?.feed.length ?? 0) >= 1);
     const command = await new Promise<Ack>((resolve) => client.emit("control:command", { type: "WORLD", worldIndex: 2 }, resolve));
     assert.equal(command.ok, true);

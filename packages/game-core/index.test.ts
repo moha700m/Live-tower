@@ -120,3 +120,22 @@ test('large ticks and small ticks produce the same boost and weather progress',(
  a.advance(70000);for(let t=10100;t<=70000;t+=100)b.advance(t);
  assert.ok(Math.abs(a.getSnapshot().players[0]!.progress-b.getSnapshot().players[0]!.progress)<1e-9);
 });
+
+test('late join is queued even when an active slot remains',()=>{
+ const engine=createEngine({nowMs:0});engine.dispatch(event('first','FOLLOW'),0);engine.advance(180000);
+ const state=engine.dispatch(event('late','FOLLOW','محمد'),180000);
+ assert.equal(state.players.length,1);assert.equal(state.queue[0]?.name,'محمد');
+ assert.equal(engine.advance(203000).players.some(p=>p.name==='محمد'),true);
+});
+
+test('restored pause shifts all deadlines without moving a challenger',()=>{
+ const engine=createEngine({nowMs:0});engine.dispatch(event('first','FOLLOW'),0);engine.advance(20000);
+ engine.dispatch(event('rose','GIFT','u1',{giftName:'rose'}),20000);engine.control({type:'PAUSE'},21000);
+ const frozen=engine.getSnapshot();const restored=createEngine({nowMs:90000,initialState:frozen});
+ assert.equal(restored.getSnapshot().players[0]!.progress,frozen.players[0]!.progress);
+ restored.control({type:'RESUME'},90000);
+ assert.equal(restored.getSnapshot().phaseEndsAt,frozen.phaseEndsAt!+69000);
+ assert.equal(restored.getSnapshot().players[0]!.boostUntil,frozen.players[0]!.boostUntil!+69000);
+ restored.dispatch(event('rose','GIFT','u1',{giftName:'rose'}),90000);
+ assert.equal(restored.getSnapshot().progress['mock:u1']!.giftPoints,1);
+});
