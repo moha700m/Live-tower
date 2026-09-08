@@ -3,7 +3,7 @@ services:
     name: rise966-realtime
     runtime: node
     plan: starter
-    region: oregon
+    region: frankfurt
     buildCommand: npm ci
     startCommand: npm run server
     healthCheckPath: /health
@@ -29,5 +29,5 @@ services:
           property: connectionString
 databases:
   - name: rise966-postgres
-    region: oregon
+    region: frankfurt
     ipAllowList: []
